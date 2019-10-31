@@ -1,0 +1,115 @@
+---
+title: ''
+author: '20802870'
+date: "October 27, 2019"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(forecast)
+```
+
+
+
+
+```{r}
+df <- read.csv("F:/A2_TS.csv", header = TRUE)
+summary(df)
+df_ts <- ts(df$Total_Phosphorus)
+plot(df_ts, ylab = "Total Phosphorus mg/L", xlab = "Year" , main = "Annual average phosphorus concentartions")
+acf(df$Total_Phosphorus, lag.max = 10)
+pacf(df$Total_Phosphorus, lag.max = 10)
+```
+
+
+
+```{r}
+#transformation techniques
+bc1 <- BoxCox(df_ts, lambda = 1)
+hist(bc1, main = "Box-Cox values when lambda = 1")
+sh_bc1 <- shapiro.test(bc1)
+#estimating lambda for BoxCox using forecast class' in-built technique
+Lambda <- BoxCox.lambda(df_ts, lower = 0)
+bc2 <- BoxCox(df_ts, lambda = Lambda)
+hist(bc2, main = "Box-Cox values with lambda estimated by R")
+sh_bc2 <- shapiro.test(bc2)
+#log transformation
+log_ts <- log(df_ts)
+hist(log_ts, main = "log transformation")
+sh_log <- shapiro.test(log_ts)
+#squareroot transformation
+sq_ts <- sqrt(df_ts)
+hist(sq_ts, main = "square root transformation ")
+sh_sq <- shapiro.test(sq_ts)
+#demean data
+m_ts <- df_ts - mean(df_ts)
+hist(m_ts, main = "de-meaned values")
+sh_m <- shapiro.test(m_ts)
+#reciprocal transformation
+r_ts <- ts(1/df$Total_Phosphorus)
+ggplot(data = r_ts, aes(x = r_ts)) + geom_histogram(aes(y = ..density..), binwidth = 1 , col = "blue", fill = "lightblue")+geom_density()+ ggtitle("Histogram for Reciprocal Transformation")
+sh_r <- shapiro.test(r_ts)
+#reciprocal transformation is the best option
+df_ts <- diff(r_ts)
+```
+
+```{r}
+# ACF and PACF after first order differencing 
+df_ts<-diff(r_ts)
+plot(df_ts, ylab = "After first order differencing")
+acf(df_ts, lag.max = 10)
+pacf(df_ts, lag.max = 10)
+#appropriate model seems to be a ARIMA(3,1,1)
+```
+
+
+
+
+```{r}
+arima311 <- arima(r_ts , order = c( 3 , 1 , 1 ))
+arima311$aic
+arima310 <- arima(r_ts , order = c( 3 , 1 , 0 ))
+arima310$aic
+arima211 <- arima(r_ts , order = c( 2 , 1 , 1 ))
+arima211$aic
+arima114 <- arima(r_ts , order = c( 1 , 1 , 4 ))
+arima114$aic
+BIC(arima311)
+BIC(arima310)
+BIC(arima211)
+BIC(arima114)
+```
+
+```{r}
+#Parameter estimation
+arima(r_ts, order = c(3 , 1 , 0),method = "ML")
+arima(r_ts, order = c(3 , 1 , 1),method = "ML")
+arima(r_ts, order = c(2 , 1 , 1),method = "ML")
+arima(r_ts, order = c(1 , 1 , 4),method = "ML")
+```
+
+
+
+```{r}
+#Question 7.8(iii)
+#note that m_ts contains de-meaned values
+qqnorm(m_ts)
+qqline(m_ts)
+plot(density(m_ts))
+```
+
+
+```{r}
+#diagnostic checks
+tsdiag(arima310, gof.lag = 10)
+qqnorm(arima310$residuals, col = "red")
+qqline(arima310$residuals, col = "blue")
+#portmanteau test( using Ljung-Box statistic)
+Box.test(arima310$residuals, type = "Ljung-Box")
+#forecasting the white noise
+res_fc<-forecast(arima310$residuals)
+plot(res_fc)
+```
+
+
